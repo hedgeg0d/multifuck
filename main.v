@@ -2,31 +2,31 @@ module main
 
 import os
 
-const global_size = 4
-const local_size  = 4
+const global_size = 10
+const local_size  = 3
 
-fn inc(n &u8) {
+fn inc(n &u16) {
     unsafe {
         if *n == local_size - 1 {*n = 0}
         else {(*n)++}
     }
 }
 
-fn dec(n &u8) {
+fn dec(n &u16) {
     unsafe {
         if *n == 0 {*n = local_size - 1}
         else {(*n)--}
     }
 }
 
-fn ginc(n &u8) {
+fn ginc(n &u16) {
     unsafe {
         if *n == global_size - 1 {*n = 0}
         else {(*n)++}
     }
 }
 
-fn gdec(n &u8) {
+fn gdec(n &u16) {
     unsafe {
         if *n == 0 {*n = global_size - 1}
         else {(*n)--}
@@ -45,8 +45,8 @@ fn print_mem(mem [][]u8) {
 
 fn process_code(code string) {
     mut mem := [][]u8{len: global_size, init: []u8{len: local_size}}
-    mut gptr := u8(0)
-    mut lptr := u8(0)
+    mut gptr := u16(0)
+    mut lptr := u16(0)
     mut local := false
     mut loop_stack := []u32{}
 	mut i := u32(0)
@@ -149,6 +149,107 @@ fn process_code(code string) {
     }
 }
 
+fn gen_bf_code(code string) {
+    mut i := u32(0)
+    mut bf := ""
+    //mut lptr := u16(0)
+    //mut gptr := u16(0)
+    mut ptr := u16(0)
+    mut local := false
+    mut ptr_b := 0
+    for ; i < code.len; i++ {
+        c := code[i]
+        if c.is_digit() {
+			if i == 0 {
+				println('Error: Numbers can only be used with >, <, +, or -')
+				return	
+			}
+            mut count := 0
+            for i < code.len && code[i].is_digit() {
+                count = count * 10 + int(code[i] - `0`)
+                i++
+			} i-- 
+			if count == 0 {bf += '[-]'}
+			else {
+            	prev_char := code[i - "${count}".len]
+				match prev_char {
+					`>` {
+                        if local {for _ in 1 .. count % local_size {bf += '>'}}
+						else {for _ in 1 .. count * local_size {bf += '>'}}
+					}
+					`<` {
+                        if local {for _ in 1 .. count % local_size {bf += '<'}}
+						else {for _ in 1 .. count * local_size {bf += '<'}}
+					}
+					`+` { 
+						for _ in 1 .. count {bf += '+'}
+					}
+					`-` { 
+						for _ in 1 .. count {bf += '-'}
+					}
+                    `)` {
+
+                        /*if local {
+                            mem[gptr][(lptr+count)%local_size] += mem[gptr][lptr]
+                        } else {
+                            mem[(gptr+count)%global_size][lptr] += mem[gptr][lptr]
+                        }*/
+                    }
+                    `(` {
+                        /*if local {
+                            mem[gptr][(lptr-count)%local_size] += mem[gptr][lptr]
+                        } else {
+                            mem[(gptr-count)%global_size][lptr] += mem[gptr][lptr]
+                        }*/
+                    }
+					else {
+						println('Error: Numbers can only be used with >, <, +, or -')
+						return
+					}
+				}
+			}
+        } else {
+            if c == `>` {ptr_b++; continue}
+            if c == `<` {ptr_b--; continue}
+            if ptr_b > 0 {
+                if local {
+                    for _ in 0..ptr_b%local_size {bf += '>'}
+                    ptr += u16(ptr_b%local_size)
+                    ptr_b = 0
+                }
+                else {
+                    for _ in 0..ptr_b*local_size {bf += '>'} 
+                    ptr += u16(ptr_b*local_size)
+                    ptr_b = 0    
+                }
+            }
+            if ptr_b < 0 {
+                if local {
+                    for _ in 0..(ptr_b*-1)%local_size {bf += '<'}
+                    ptr -= u16((ptr_b*-1)%local_size)
+                    ptr_b = 0
+                }
+                else {
+                    for _ in 0..(ptr_b*-1)*local_size {bf += '<'} 
+                    ptr -= u16((ptr_b*-1)*local_size)
+                    ptr_b = 0    
+                }
+            }
+            if c == `@` {
+                if local {
+                    for _ in 0..ptr-ptr/local_size{bf+='<'}
+                    ptr /= local_size 
+                }
+                local = !local
+                continue
+            }
+            if c == `)` || c == `(` {continue}
+            bf += c.ascii_str()
+        }
+    }
+    println(bf)
+}
+
 fn main() {
     args := os.args
     if args.len < 2 {
@@ -180,4 +281,5 @@ fn main() {
     
     println(code)
     process_code(code)
+    gen_bf_code(code)
 }
